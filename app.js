@@ -83,7 +83,7 @@ async function getMuniTable() {
     const re = /GSI\.MUNI_ARRAY\["(\d+)"\]\s*=\s*'([^']+)'/g;
     let m;
     while ((m = re.exec(txt)) !== null) {
-      const parts = m[2].split(',');           // 例: '15,新潟県,15103,新潟市中央区'
+      const parts = m[2].split(',');           // 例: '13,東京都,13101,千代田区'
       muniTable[m[1]] = { pref: parts[1], city: parts[3] };
     }
   } catch (e) { console.warn('muni.js load failed', e); }
