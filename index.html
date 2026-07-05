@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1a1d29">
+<title>防災ダッシュボード</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --card: #ffffff;
+    --ink: #1a1d29;
+    --sub: #6b7280;
+    --accent: #d93025;
+    --safe: #188038;
+    --warn: #e37400;
+    --line: #e5e7eb;
+    --tab-bg: #e9ebef;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--bg); color: var(--ink); font-size: 15px; line-height: 1.5;
+    padding-bottom: 40px;
+  }
+  header {
+    background: var(--ink); color: #fff; padding: 12px 16px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 1000;
+  }
+  header h1 { font-size: 17px; font-weight: 700; }
+  header .btns { display: flex; gap: 8px; }
+  header button {
+    background: rgba(255,255,255,.12); color: #fff; border: none; border-radius: 8px;
+    padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  /* location tabs */
+  #tabs {
+    display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px;
+    background: var(--card); border-bottom: 1px solid var(--line);
+    -webkit-overflow-scrolling: touch;
+  }
+  #tabs::-webkit-scrollbar { display: none; }
+  .tab {
+    flex: 0 0 auto; padding: 7px 14px; border-radius: 18px; background: var(--tab-bg);
+    border: none; font-size: 14px; cursor: pointer; color: var(--ink); white-space: nowrap;
+  }
+  .tab.active { background: var(--ink); color: #fff; font-weight: 600; }
+  .tab.add { background: transparent; border: 1.5px dashed #9ca3af; color: var(--sub); }
+  main { max-width: 640px; margin: 0 auto; padding: 12px 12px 0; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border-radius: 14px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 600; margin-bottom: 8px; letter-spacing: .04em; }
+  /* status banner */
+  #status { border-left: 5px solid var(--safe); }
+  #status.alert { border-left-color: var(--accent); background: #fdecea; }
+  #status.warn { border-left-color: var(--warn); background: #fef3e0; }
+  #status .headline { font-size: 16px; font-weight: 700; }
+  #status .detail { font-size: 13px; color: var(--sub); margin-top: 4px; white-space: pre-wrap; }
+  /* location card */
+  #locname { font-size: 20px; font-weight: 700; }
+  #locsub { font-size: 12px; color: var(--sub); margin-top: 2px; }
+  #loc-actions { margin-top: 8px; display: flex; gap: 8px; }
+  #loc-actions button {
+    font-size: 12px; padding: 5px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: #fff; cursor: pointer; color: var(--ink);
+  }
+  /* realtime search buttons */
+  .qterm-row { display: flex; gap: 6px; margin-bottom: 6px; }
+  .qterm-row input {
+    flex: 1; min-width: 0; padding: 8px 10px; border: 1.5px solid #7b1fa2; border-radius: 8px;
+    font-size: 15px; font-weight: 600; color: #4a148c;
+  }
+  .chip {
+    flex: 0 0 auto; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: #f4f5f7; font-size: 12px; cursor: pointer; color: var(--sub);
+  }
+  .qgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .qgrid a {
+    display: block; text-align: center; padding: 11px 8px; border-radius: 10px;
+    background: #7b1fa2; color: #fff; text-decoration: none; font-size: 14px; font-weight: 600;
+  }
+  .qgrid a.sub { background: #ede7f6; color: #4a148c; }
+  .note { font-size: 11px; color: var(--sub); margin-top: 8px; }
+  /* map */
+  #map { height: 340px; border-radius: 10px; z-index: 1; }
+  .maprow { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+  .maprow select {
+    font-size: 13px; padding: 5px 8px; border-radius: 8px; border: 1px solid var(--line); background: #fff;
+  }
+  #evacmsg { font-size: 12px; color: var(--sub); margin-top: 6px; }
+  /* quake feed */
+  .quake { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); align-items: center; }
+  .quake:last-child { border-bottom: none; }
+  .scale {
+    flex: 0 0 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px; background: #eceff1; color: #37474f;
+  }
+  .scale.s3 { background: #fff59d; } .scale.s4 { background: #ffb74d; color:#fff; }
+  .scale.s5 { background: #ff7043; color: #fff; } .scale.s6 { background: #d93025; color: #fff; }
+  .scale.s7 { background: #6a1b9a; color: #fff; }
+  .quake .info { flex: 1; min-width: 0; }
+  .quake .place { font-weight: 600; font-size: 14px; }
+  .quake .meta { font-size: 12px; color: var(--sub); }
+  .quake .near { color: var(--accent); font-weight: 700; font-size: 12px; }
+  /* external links */
+  .links { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .links a {
+    display: block; padding: 10px 8px; text-align: center; border-radius: 10px;
+    background: #e8f0fe; color: #1a56b4; text-decoration: none; font-size: 13px; font-weight: 600;
+  }
+  /* dialog */
+  dialog {
+    border: none; border-radius: 14px; padding: 18px; width: min(92vw, 420px);
+    margin: auto;
+  }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  dialog h3 { font-size: 16px; margin-bottom: 12px; }
+  dialog input[type=text], dialog input[type=date] {
+    width: 100%; padding: 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 15px; margin-bottom: 8px;
+  }
+  dialog .results { max-height: 200px; overflow-y: auto; margin-bottom: 8px; }
+  dialog .results button {
+    display: block; width: 100%; text-align: left; padding: 9px 10px; border: none; background: #f4f5f7;
+    border-radius: 8px; margin-bottom: 6px; cursor: pointer; font-size: 14px;
+  }
+  dialog .row { display: flex; gap: 8px; justify-content: flex-end; }
+  dialog .row button {
+    padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 14px;
+  }
+  dialog .row .primary { background: var(--ink); color: #fff; }
+  .spot-list { margin-bottom: 10px; }
+  .spot-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .spot-item button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; }
+  footer { text-align: center; font-size: 11px; color: var(--sub); padding: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🛟 防災ダッシュボード</h1>
+  <div class="btns">
+    <button id="btn-notify" title="通知を有効化">🔔 通知</button>
+    <button id="btn-manage" title="地点の管理">⚙️</button>
+  </div>
+</header>
+
+<nav id="tabs"></nav>
+
+<main>
+  <div class="card" id="status">
+    <div class="headline" id="status-headline">情報を取得中…</div>
+    <div class="detail" id="status-detail"></div>
+  </div>
+
+  <div class="card">
+    <div id="locname">—</div>
+    <div id="locsub"></div>
+    <div id="loc-actions">
+      <button id="btn-relocate">📍 現在地を再取得</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>リアルタイム検索（X/Twitterの生の投稿・アカウント不要）</h2>
+    <div class="qterm-row">
+      <input type="text" id="qterm" placeholder="検索する地名">
+      <button class="chip" id="qterm-city">市区町村</button>
+      <button class="chip" id="qterm-pref">県全域</button>
+    </div>
+    <div class="note" style="margin:0 0 10px">💡 災害時は「関屋」「万代橋」など地区名・駅名・川の名前に変えると現地の投稿が見つかりやすい</div>
+    <div class="qgrid" id="qgrid"></div>
+    <div class="note">Yahoo!リアルタイム検索を開きます。ログイン不要でXの投稿を新着順に確認できます。</div>
+  </div>
+
+  <div class="card">
+    <div class="maprow">
+      <h2 style="margin:0">指定緊急避難場所マップ</h2>
+      <select id="evactype">
+        <option value="skhb05">津波</option>
+        <option value="skhb04">地震</option>
+        <option value="skhb01">洪水</option>
+        <option value="skhb02">崖崩れ・土石流</option>
+        <option value="skhb03">高潮</option>
+        <option value="skhb06">大規模な火事</option>
+        <option value="skhb08">火山現象</option>
+      </select>
+    </div>
+    <div id="map"></div>
+    <div id="evacmsg"></div>
+  </div>
+
+  <div class="card">
+    <h2>地震・津波情報（P2P地震情報 / 気象庁発表）</h2>
+    <div id="quakes">読み込み中…</div>
+  </div>
+
+  <div class="card">
+    <h2>外部リンク</h2>
+    <div class="links" id="extlinks"></div>
+  </div>
+</main>
+
+<footer>
+  データ: 気象庁 / P2P地震情報 / 国土地理院 / LINEヤフー<br>
+  本アプリは個人用プロトタイプです。避難の判断は必ず公的機関の発表に従ってください。
+</footer>
+
+<dialog id="dlg-add">
+  <h3>地点を追加</h3>
+  <input type="text" id="add-query" placeholder="住所や地名で検索（例: 新潟市中央区）">
+  <div class="results" id="add-results"></div>
+  <input type="text" id="add-label" placeholder="表示名（例: 実家）">
+  <label style="font-size:13px;color:var(--sub)">期限（旅行先など一時的な地点の場合のみ）</label>
+  <input type="date" id="add-expiry">
+  <div class="row">
+    <button id="add-cancel">キャンセル</button>
+    <button class="primary" id="add-save" disabled>追加</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-manage">
+  <h3>登録地点の管理</h3>
+  <div class="spot-list" id="manage-list"></div>
+  <div class="row">
+    <button id="manage-close">閉じる</button>
+  </div>
+</dialog>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

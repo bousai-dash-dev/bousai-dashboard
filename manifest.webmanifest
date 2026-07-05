@@ -1,0 +1,12 @@
+{
+  "name": "防災ダッシュボード",
+  "short_name": "防災",
+  "description": "現在地・登録地点の災害情報を一画面で確認する個人用ダッシュボード",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#1a1d29",
+  "theme_color": "#1a1d29",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
